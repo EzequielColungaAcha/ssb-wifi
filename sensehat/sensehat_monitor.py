@@ -218,14 +218,27 @@ class SenseHatMonitor:
         
         # Fallback to legacy status file for single AP mode
         if not status_file.exists() and interface == "wlan0":
-            status_file = RUN_DIR / "status.json"
+            legacy_file = RUN_DIR / "status.json"
+            if legacy_file.exists():
+                status_file = legacy_file
+                logger.debug(f"Using legacy status file for {interface}")
+        
+        if not status_file.exists():
+            logger.warning(f"Status file not found: {status_file}")
+            return None
         
         try:
-            if status_file.exists():
-                with open(status_file, 'r') as f:
-                    return json.load(f)
+            with open(status_file, 'r') as f:
+                status = json.load(f)
+                logger.debug(f"Loaded status for {interface}: state={status.get('state')}, "
+                            f"time_remaining={status.get('time_remaining')}")
+                return status
+        except PermissionError:
+            logger.error(f"Permission denied reading {status_file}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in {status_file}: {e}")
         except Exception as e:
-            logger.debug(f"Failed to read status for {interface}: {e}")
+            logger.error(f"Failed to read status for {interface}: {e}")
         
         return None
     
@@ -350,9 +363,11 @@ class SenseHatMonitor:
                 color = self.get_status_color(status, has_internet)
                 should_blink = self.should_blink(status)
                 show = not should_blink or self.blink_state
+                logger.debug(f"Single AP display: color={color}, blink={should_blink}, show={show}")
                 self.draw_full_display(pixels, status, color, show)
             else:
-                # No status available - show based on internet
+                # No status available - show based on internet only
+                logger.debug(f"No status file, falling back to internet check: {has_internet}")
                 if has_internet:
                     self.draw_full_display(pixels, {}, COLOR_GREEN, True)
                 else:

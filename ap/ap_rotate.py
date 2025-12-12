@@ -389,16 +389,27 @@ class APInstance:
             return True, "initial"
         
         now = time.time()
+        time_since_creation = now - self.current_creds.created_at
+        time_until_expiry = self.current_creds.expires_at - now
+        
+        # Log current state for debugging
+        client_count = self.get_client_count()
+        logger.debug(f"[{self.interface}] Rotation check: "
+                     f"age={time_since_creation:.0f}s, "
+                     f"expires_in={time_until_expiry:.0f}s, "
+                     f"clients={client_count}")
         
         if now >= self.current_creds.expires_at:
+            logger.info(f"[{self.interface}] Rotation trigger: time_expired "
+                        f"(age={time_since_creation:.0f}s)")
             return True, "time_expired"
         
-        client_count = self.get_client_count()
         threshold = self.global_config["client_threshold"]
         min_time = self.global_config["min_time_after_clients_sec"]
-        time_since_creation = now - self.current_creds.created_at
         
         if client_count >= threshold and time_since_creation >= min_time:
+            logger.info(f"[{self.interface}] Rotation trigger: client_threshold "
+                        f"(clients={client_count}, age={time_since_creation:.0f}s)")
             return True, f"client_threshold_{client_count}"
         
         return False, ""
@@ -415,7 +426,7 @@ class APRotationDaemon:
         # Ensure directories exist
         RUN_DIR.mkdir(parents=True, exist_ok=True)
         LOG_DIR.mkdir(parents=True, exist_ok=True)
-        os.chmod(RUN_DIR, 0o700)
+        os.chmod(RUN_DIR, 0o755)  # Allow other services to read status files
         
         # Setup signal handlers
         signal.signal(signal.SIGTERM, self._handle_signal)
