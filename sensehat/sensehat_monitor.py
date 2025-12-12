@@ -388,14 +388,26 @@ class SenseHatMonitor:
             return False
         
         try:
+            # Ensure RUN_DIR exists
+            RUN_DIR.mkdir(parents=True, exist_ok=True)
+            
             trigger_file = RUN_DIR / f"trigger-rotate-{interface}"
             trigger_file.touch()
+            
+            # Make file readable by ap_rotate service
+            os.chmod(trigger_file, 0o644)
+            
             self.last_rotation_trigger[interface] = now
-            logger.info(f"Manual rotation triggered for {interface}")
+            logger.info(f"Manual rotation triggered for {interface}: created {trigger_file}")
             self._blink_confirm()
             return True
+        except PermissionError as e:
+            logger.error(f"Permission denied creating trigger file: {e}")
+            self._blink_error()
+            return False
         except Exception as e:
             logger.error(f"Failed to trigger rotation: {e}")
+            self._blink_error()
             return False
     
     def _blink_error(self):
@@ -416,8 +428,10 @@ class SenseHatMonitor:
     
     def on_joystick_press(self, event):
         """Handle joystick middle button press"""
+        logger.info(f"Joystick event received: direction={event.direction}, action={event.action}")
+        
         if event.action == "pressed":
-            logger.info("Joystick middle button pressed")
+            logger.info("Joystick middle button pressed - triggering rotation")
             
             # In dual mode, trigger both interfaces
             if self.is_dual_mode():
@@ -430,7 +444,9 @@ class SenseHatMonitor:
         """Setup joystick handler"""
         try:
             self.sense.stick.direction_middle = self.on_joystick_press
-            logger.info("Joystick handler registered")
+            logger.info("Joystick middle-click handler registered successfully")
+        except AttributeError as e:
+            logger.error(f"Joystick not available on this Sense HAT: {e}")
         except Exception as e:
             logger.warning(f"Failed to setup joystick: {e}")
     
