@@ -163,7 +163,7 @@ apt-get install -y -qq \
     xserver-xorg \
     x11-xserver-utils \
     xinit \
-    chromium-browser \
+    chromium \
     unclutter \
     fonts-dejavu
 
@@ -400,7 +400,7 @@ unclutter -idle 0.1 -root &
 sleep 5
 
 # Start Chromium in kiosk mode
-exec chromium-browser \
+exec chromium \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \
