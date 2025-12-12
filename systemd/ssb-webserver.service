@@ -1,0 +1,32 @@
+[Unit]
+Description=SSB WiFi Kiosk - Web Server
+Documentation=https://github.com/ssb-wifi-kiosk
+After=network.target ssb-ap-rotate.service
+Wants=ssb-ap-rotate.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/ssb-wifi-kiosk/web
+ExecStart=/usr/bin/python3 /opt/ssb-wifi-kiosk/web/server.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+Environment=FLASK_ENV=production
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/run/ssb-ap
+
+# Logging
+SyslogIdentifier=ssb-webserver
+
+[Install]
+WantedBy=multi-user.target

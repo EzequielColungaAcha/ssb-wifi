@@ -1,0 +1,38 @@
+[Unit]
+Description=SSB WiFi Kiosk - AP Rotation Daemon
+Documentation=https://github.com/ssb-wifi-kiosk
+After=network.target hostapd.service dnsmasq.service
+Wants=hostapd.service dnsmasq.service
+Before=ssb-webserver.service ssb-sensehat.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/ssb-wifi-kiosk
+ExecStart=/usr/bin/python3 /opt/ssb-wifi-kiosk/ap/ap_rotate.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+
+# Security (relaxed - needs network admin capabilities)
+NoNewPrivileges=false
+ProtectSystem=false
+ProtectHome=true
+
+# Capabilities for network management
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+
+# Logging
+SyslogIdentifier=ssb-ap-rotate
+
+# Watchdog (restart if stuck)
+WatchdogSec=120
+NotifyAccess=main
+
+[Install]
+WantedBy=multi-user.target

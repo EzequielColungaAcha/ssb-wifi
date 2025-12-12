@@ -1,0 +1,29 @@
+[Unit]
+Description=SSB WiFi Kiosk - Sense HAT Monitor
+Documentation=https://github.com/ssb-wifi-kiosk
+After=network.target ssb-ap-rotate.service
+Wants=ssb-ap-rotate.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/ssb-wifi-kiosk
+ExecStart=/usr/bin/python3 /opt/ssb-wifi-kiosk/sensehat/sensehat_monitor.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+
+# Security
+NoNewPrivileges=true
+ProtectHome=true
+
+# Logging
+SyslogIdentifier=ssb-sensehat
+
+[Install]
+WantedBy=multi-user.target

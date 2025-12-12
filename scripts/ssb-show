@@ -1,0 +1,164 @@
+#!/bin/bash
+# =========================================================
+#  SSB WiFi Kiosk - Show Current Credentials
+#  
+#  Displays the current WiFi SSID and password.
+#  Supports both single AP and dual AP modes.
+#  Requires sudo to access credentials file.
+#  
+#  Usage: sudo ssb-show
+#         sudo ssb-show wlan0
+#         sudo ssb-show wlan1
+# =========================================================
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+RUN_DIR="/var/run/ssb-ap"
+CONFIG_FILE="/etc/ssb-ap/config.json"
+
+# Check root
+if [ "$EUID" -ne 0 ]; then
+    echo -e "${RED}Error: This command requires root privileges${NC}"
+    echo "Usage: sudo ssb-show [interface]"
+    exit 1
+fi
+
+# Check if dual AP mode
+DUAL_MODE=false
+if [ -f "$CONFIG_FILE" ]; then
+    DUAL_MODE=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE')).get('dual_ap_mode', False))" 2>/dev/null || echo "False")
+fi
+
+# Determine which interfaces to show
+if [ -n "$1" ]; then
+    # Specific interface requested
+    INTERFACES=("$1")
+else
+    # Auto-detect based on available status files
+    INTERFACES=()
+    for f in "$RUN_DIR"/status-wlan*.json "$RUN_DIR"/current-wlan*.json; do
+        if [ -f "$f" ]; then
+            iface=$(basename "$f" | sed 's/status-//;s/current-//;s/\.json//')
+            if [[ ! " ${INTERFACES[*]} " =~ " ${iface} " ]]; then
+                INTERFACES+=("$iface")
+            fi
+        fi
+    done
+    
+    # Fallback to legacy files
+    if [ ${#INTERFACES[@]} -eq 0 ]; then
+        if [ -f "$RUN_DIR/current.json" ] || [ -f "$RUN_DIR/status.json" ]; then
+            INTERFACES=("wlan0")
+        fi
+    fi
+fi
+
+if [ ${#INTERFACES[@]} -eq 0 ]; then
+    echo -e "${RED}Error: No credentials found${NC}"
+    echo "The AP rotation daemon may not be running."
+    echo ""
+    echo "Check status: sudo systemctl status ssb-ap-rotate"
+    exit 1
+fi
+
+show_interface() {
+    local IFACE="$1"
+    
+    # Try interface-specific files first
+    local CREDS_FILE="$RUN_DIR/current-${IFACE}.json"
+    local STATUS_FILE="$RUN_DIR/status-${IFACE}.json"
+    
+    # Fallback to legacy files for wlan0
+    if [ ! -f "$CREDS_FILE" ] && [ "$IFACE" = "wlan0" ]; then
+        CREDS_FILE="$RUN_DIR/current.json"
+        STATUS_FILE="$RUN_DIR/status.json"
+    fi
+    
+    if [ ! -f "$CREDS_FILE" ]; then
+        echo -e "${YELLOW}Interface ${IFACE}: No credentials available${NC}"
+        return 1
+    fi
+    
+    # Parse credentials
+    SSID=$(python3 -c "import json; print(json.load(open('$CREDS_FILE'))['ssid'])" 2>/dev/null)
+    PASSWORD=$(python3 -c "import json; print(json.load(open('$CREDS_FILE'))['password'])" 2>/dev/null)
+    CREATED=$(python3 -c "import json; from datetime import datetime; print(datetime.fromtimestamp(json.load(open('$CREDS_FILE'))['created_at']).strftime('%H:%M:%S'))" 2>/dev/null)
+    EXPIRES=$(python3 -c "import json; from datetime import datetime; print(datetime.fromtimestamp(json.load(open('$CREDS_FILE'))['expires_at']).strftime('%H:%M:%S'))" 2>/dev/null)
+    REASON=$(python3 -c "import json; print(json.load(open('$CREDS_FILE')).get('rotation_reason', 'unknown'))" 2>/dev/null)
+    
+    # Get status if available
+    if [ -f "$STATUS_FILE" ]; then
+        STATE=$(python3 -c "import json; print(json.load(open('$STATUS_FILE')).get('state', 'unknown'))" 2>/dev/null)
+        CLIENTS=$(python3 -c "import json; print(json.load(open('$STATUS_FILE')).get('client_count', 0))" 2>/dev/null)
+        TIME_LEFT=$(python3 -c "import json; print(json.load(open('$STATUS_FILE')).get('time_remaining', 0))" 2>/dev/null)
+    else
+        STATE="unknown"
+        CLIENTS="?"
+        # Calculate time remaining
+        NOW=$(date +%s)
+        EXPIRES_TS=$(python3 -c "import json; print(int(json.load(open('$CREDS_FILE'))['expires_at']))" 2>/dev/null)
+        if [ -n "$EXPIRES_TS" ] && [ "$EXPIRES_TS" -gt "$NOW" ]; then
+            TIME_LEFT=$((EXPIRES_TS - NOW))
+        else
+            TIME_LEFT=0
+        fi
+    fi
+    
+    # Format time remaining
+    if [ "$TIME_LEFT" -gt 0 ]; then
+        MINS=$((TIME_LEFT / 60))
+        SECS=$((TIME_LEFT % 60))
+        TIME_STR="${MINS}m ${SECS}s"
+    else
+        TIME_STR="Expired"
+    fi
+    
+    # Display
+    echo -e "${CYAN}┌─────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${CYAN}│${NC}  ${BOLD}Interface:${NC}       ${YELLOW}${IFACE}${NC}"
+    echo -e "${CYAN}│${NC}  ${BOLD}Network (SSID):${NC}  ${YELLOW}${SSID}${NC}"
+    echo -e "${CYAN}│${NC}  ${BOLD}Password:${NC}        ${YELLOW}${PASSWORD}${NC}"
+    echo -e "${CYAN}├─────────────────────────────────────────────────────────────┤${NC}"
+    echo -e "${CYAN}│${NC}  Status:         ${STATE}"
+    echo -e "${CYAN}│${NC}  Connected:      ${CLIENTS} clients"
+    echo -e "${CYAN}│${NC}  Created at:     ${CREATED}"
+    echo -e "${CYAN}│${NC}  Expires at:     ${EXPIRES} (${TIME_STR})"
+    echo -e "${CYAN}│${NC}  Last rotation:  ${REASON}"
+    echo -e "${CYAN}└─────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e "${BOLD}QR Code Format:${NC}"
+    echo -e "  WIFI:T:WPA;S:${SSID};P:${PASSWORD};;"
+    
+    # Show QR in terminal if qrencode available
+    if command -v qrencode &> /dev/null; then
+        echo ""
+        echo -e "${BOLD}Scan this QR code:${NC}"
+        qrencode -t ANSIUTF8 "WIFI:T:WPA;S:${SSID};P:${PASSWORD};;"
+    fi
+}
+
+# Header
+echo ""
+echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗"
+echo -e "║  ${BOLD}SSB WiFi Kiosk - Current Credentials${NC}${GREEN}                    ║"
+echo -e "╚═══════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+if [ "$DUAL_MODE" = "True" ]; then
+    echo -e "${CYAN}Mode: Dual AP${NC}"
+else
+    echo -e "${CYAN}Mode: Single AP${NC}"
+fi
+echo ""
+
+# Show each interface
+for iface in "${INTERFACES[@]}"; do
+    show_interface "$iface"
+    echo ""
+done

@@ -1,0 +1,22 @@
+[Unit]
+Description=SSB WiFi Kiosk - Hostapd for %i
+Documentation=https://github.com/ssb-wifi-kiosk
+After=network.target ssb-firewall.service
+Wants=ssb-firewall.service
+ConditionPathExists=/etc/hostapd/hostapd-%i.conf
+
+[Service]
+Type=forking
+PIDFile=/run/hostapd-%i.pid
+ExecStart=/usr/sbin/hostapd -B -P /run/hostapd-%i.pid /etc/hostapd/hostapd-%i.conf
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hostapd-%i
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SSB WiFi Kiosk</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/config.js"></script>
+  </head>
+  <body>
+    <div class="kiosk-container">
+      <!-- Quadrant 1: Top Left -->
+      <div class="quadrant quadrant-1" id="quadrant1">
+        <div class="content-wrapper">
+          <img
+            src="/static/assets/logo.png"
+            alt="Logo"
+            class="logo"
+            onerror="this.style.display='none'"
+          />
+          <h1 id="q1-title">Super Smash Burger</h1>
+          <p id="q1-subtitle">Las mejores hamburguesas de la ciudad</p>
+        </div>
+      </div>
+
+      <!-- Quadrant 2: Top Right -->
+      <div class="quadrant quadrant-2" id="quadrant2">
+        <div class="content-wrapper">
+          <h2 id="q2-title">Menu del Dia</h2>
+          <ul class="menu-list" id="q2-content">
+            <li>Smash Classic - $5.500</li>
+            <li>Smash Doble - $7.500</li>
+            <li>Smash Bacon - $8.000</li>
+            <li>Papas Fritas - $2.500</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Quadrant 3: Bottom Left -->
+      <div class="quadrant quadrant-3" id="quadrant3">
+        <div class="content-wrapper">
+          <h2 id="q3-title">Promociones</h2>
+          <div id="q3-content">
+            <div class="promo-item">
+              <span class="promo-icon">🍔</span>
+              <span>2x1 los Martes!</span>
+            </div>
+            <div class="promo-item">
+              <span class="promo-icon">🍟</span>
+              <span>Combo + Bebida gratis</span>
+            </div>
+            <div class="promo-item">
+              <span class="promo-icon">🎉</span>
+              <span>Happy Hour 17-19hs</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quadrant 4: Bottom Right - QR Code(s) -->
+      <div class="quadrant quadrant-4" id="quadrant4">
+        <!-- Single AP Mode -->
+        <div class="qr-wrapper" id="single-ap-view">
+          <div class="qr-header">
+            <span class="wifi-icon">📶</span>
+            <span>WiFi Gratis</span>
+          </div>
+
+          <div class="qr-container">
+            <img
+              src="/static/qr.png"
+              alt="WiFi QR Code"
+              id="qr-image"
+              class="qr-image"
+            />
+          </div>
+
+          <div class="ssid-display">
+            <span class="ssid-label">Red:</span>
+            <span class="ssid-value" id="ssid-value">{{ ssid }}</span>
+          </div>
+
+          <div class="status-bar">
+            <div class="status-item">
+              <span class="status-label">Estado:</span>
+              <span class="status-value" id="status-state">{{ state }}</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Conectados:</span>
+              <span class="status-value" id="client-count"
+                >{{ client_count }}</span
+              >
+            </div>
+            <div class="status-item">
+              <span class="status-label">Expira en:</span>
+              <span class="status-value" id="time-remaining">--:--</span>
+            </div>
+          </div>
+
+          <p class="scan-instruction">Escaneá el código QR para conectarte</p>
+        </div>
+
+        <!-- Dual AP Mode -->
+        <div class="dual-qr-wrapper" id="dual-ap-view" style="display: none">
+          <div class="qr-header">
+            <span class="wifi-icon">📶</span>
+            <span>WiFi Gratis</span>
+          </div>
+
+          <div class="dual-qr-container">
+            <!-- wlan0 -->
+            <div class="qr-panel" id="qr-panel-wlan0">
+              <div class="qr-container-small">
+                <img
+                  src="/static/qr-wlan0.png"
+                  alt="WiFi QR (0)"
+                  id="qr-image-wlan0"
+                  class="qr-image-small"
+                />
+              </div>
+              <div class="ssid-display-small">
+                <span class="interface-label">0:</span>
+                <span class="ssid-value-small" id="ssid-wlan0">---</span>
+              </div>
+              <div class="time-display-small">
+                <span id="time-wlan0">--:--</span>
+              </div>
+            </div>
+
+            <!-- wlan1 -->
+            <div class="qr-panel" id="qr-panel-wlan1">
+              <div class="qr-container-small">
+                <img
+                  src="/static/qr-wlan1.png"
+                  alt="WiFi QR (1)"
+                  id="qr-image-wlan1"
+                  class="qr-image-small"
+                />
+              </div>
+              <div class="ssid-display-small">
+                <span class="interface-label">1:</span>
+                <span class="ssid-value-small" id="ssid-wlan1">---</span>
+              </div>
+              <div class="time-display-small">
+                <span id="time-wlan1">--:--</span>
+              </div>
+            </div>
+          </div>
+
+          <p class="scan-instruction">
+            Escaneá cualquier código QR para conectarte
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Configuration
+      const POLL_INTERVAL = 2000;
+      let lastQrMtime = {};
+      let expiresAt = {};
+      let dualApMode = false;
+
+      // Apply custom configuration from config.js
+      function applyConfig() {
+        if (typeof KIOSK_CONFIG !== 'undefined') {
+          const cfg = KIOSK_CONFIG;
+
+          if (cfg.quadrant1) {
+            if (cfg.quadrant1.title) {
+              document.getElementById('q1-title').textContent =
+                cfg.quadrant1.title;
+            }
+            if (cfg.quadrant1.subtitle) {
+              document.getElementById('q1-subtitle').textContent =
+                cfg.quadrant1.subtitle;
+            }
+            if (cfg.quadrant1.backgroundColor) {
+              document.querySelector('.quadrant-1').style.background =
+                cfg.quadrant1.backgroundColor;
+            }
+          }
+
+          if (cfg.quadrant2) {
+            if (cfg.quadrant2.title) {
+              document.getElementById('q2-title').textContent =
+                cfg.quadrant2.title;
+            }
+            if (cfg.quadrant2.items && Array.isArray(cfg.quadrant2.items)) {
+              const list = document.getElementById('q2-content');
+              list.innerHTML = cfg.quadrant2.items
+                .map((item) => `<li>${item}</li>`)
+                .join('');
+            }
+            if (cfg.quadrant2.backgroundColor) {
+              document.querySelector('.quadrant-2').style.background =
+                cfg.quadrant2.backgroundColor;
+            }
+          }
+
+          if (cfg.quadrant3) {
+            if (cfg.quadrant3.title) {
+              document.getElementById('q3-title').textContent =
+                cfg.quadrant3.title;
+            }
+            if (cfg.quadrant3.promos && Array.isArray(cfg.quadrant3.promos)) {
+              const container = document.getElementById('q3-content');
+              container.innerHTML = cfg.quadrant3.promos
+                .map(
+                  (promo) =>
+                    `<div class="promo-item">
+                      <span class="promo-icon">${promo.icon || '🍔'}</span>
+                      <span>${promo.text}</span>
+                    </div>`
+                )
+                .join('');
+            }
+            if (cfg.quadrant3.backgroundColor) {
+              document.querySelector('.quadrant-3').style.background =
+                cfg.quadrant3.backgroundColor;
+            }
+          }
+
+          if (cfg.customCSS) {
+            const style = document.createElement('style');
+            style.textContent = cfg.customCSS;
+            document.head.appendChild(style);
+          }
+        }
+      }
+
+      // Format seconds as MM:SS
+      function formatTime(seconds) {
+        if (seconds <= 0) return '00:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs
+          .toString()
+          .padStart(2, '0')}`;
+      }
+
+      // Update countdown timer
+      function updateCountdown() {
+        const now = Date.now() / 1000;
+
+        if (dualApMode) {
+          // Update both interfaces
+          ['wlan0', 'wlan1'].forEach((iface) => {
+            if (expiresAt[iface]) {
+              const remaining = Math.max(0, Math.floor(expiresAt[iface] - now));
+              const el = document.getElementById(`time-${iface}`);
+              if (el) {
+                el.textContent = formatTime(remaining);
+                // Blink warning when < 60 seconds
+                if (remaining <= 60 && remaining > 0) {
+                  el.classList.add('warning');
+                } else {
+                  el.classList.remove('warning');
+                }
+              }
+            }
+          });
+        } else {
+          // Single AP mode
+          if (expiresAt['wlan0']) {
+            const remaining = Math.max(0, Math.floor(expiresAt['wlan0'] - now));
+            const el = document.getElementById('time-remaining');
+            if (el) {
+              el.textContent = formatTime(remaining);
+              if (remaining <= 60 && remaining > 0) {
+                el.classList.add('warning');
+              } else {
+                el.classList.remove('warning');
+              }
+            }
+          }
+        }
+      }
+
+      // Switch between single and dual AP views
+      function setDualApMode(enabled) {
+        dualApMode = enabled;
+        const singleView = document.getElementById('single-ap-view');
+        const dualView = document.getElementById('dual-ap-view');
+
+        if (enabled) {
+          singleView.style.display = 'none';
+          dualView.style.display = 'block';
+        } else {
+          singleView.style.display = 'block';
+          dualView.style.display = 'none';
+        }
+      }
+
+      // Poll status endpoint
+      async function pollStatus() {
+        try {
+          const response = await fetch('/status');
+          if (!response.ok) throw new Error('Status fetch failed');
+
+          const data = await response.json();
+
+          // Check if dual AP mode changed
+          if (data.dual_ap_mode !== dualApMode) {
+            setDualApMode(data.dual_ap_mode);
+          }
+
+          if (data.dual_ap_mode && data.interfaces) {
+            // Dual AP mode - update both interfaces
+            ['wlan0', 'wlan1'].forEach((iface) => {
+              const ifaceData = data.interfaces[iface];
+              if (ifaceData && ifaceData.enabled) {
+                // Update SSID
+                const ssidEl = document.getElementById(`ssid-${iface}`);
+                if (ssidEl) ssidEl.textContent = ifaceData.ssid || '---';
+
+                // Update expiration
+                expiresAt[iface] = ifaceData.expires_at || 0;
+
+                // Check if QR needs refresh
+                if (
+                  ifaceData.qr_mtime &&
+                  ifaceData.qr_mtime !== lastQrMtime[iface]
+                ) {
+                  lastQrMtime[iface] = ifaceData.qr_mtime;
+                  const qrImg = document.getElementById(`qr-image-${iface}`);
+                  if (qrImg) {
+                    qrImg.src = `/static/qr-${iface}.png?` + Date.now();
+                  }
+                }
+
+                // Show/hide panel
+                const panel = document.getElementById(`qr-panel-${iface}`);
+                if (panel) panel.style.display = 'flex';
+              } else {
+                // Hide disabled interface
+                const panel = document.getElementById(`qr-panel-${iface}`);
+                if (panel) panel.style.display = 'none';
+              }
+            });
+          } else {
+            // Single AP mode
+            document.getElementById('ssid-value').textContent =
+              data.ssid || '---';
+
+            const stateEl = document.getElementById('status-state');
+            stateEl.textContent = data.state || 'unknown';
+            stateEl.className =
+              'status-value state-' + (data.state || 'unknown');
+
+            document.getElementById('client-count').textContent =
+              data.client_count || 0;
+
+            expiresAt['wlan0'] = data.expires_at || 0;
+            updateCountdown();
+
+            if (data.qr_mtime && data.qr_mtime !== lastQrMtime['main']) {
+              lastQrMtime['main'] = data.qr_mtime;
+              const qrImg = document.getElementById('qr-image');
+              qrImg.src = '/static/qr.png?' + Date.now();
+            }
+          }
+
+          updateCountdown();
+        } catch (error) {
+          console.error('Status poll error:', error);
+          if (!dualApMode) {
+            document.getElementById('status-state').textContent = 'error';
+            document.getElementById('status-state').className =
+              'status-value state-error';
+          }
+        }
+      }
+
+      // Initialize
+      document.addEventListener('DOMContentLoaded', function () {
+        applyConfig();
+        pollStatus();
+        setInterval(pollStatus, POLL_INTERVAL);
+        setInterval(updateCountdown, 1000);
+
+        // Prevent context menu and selection (kiosk mode)
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+        document.addEventListener('selectstart', (e) => e.preventDefault());
+      });
+    </script>
+  </body>
+</html>

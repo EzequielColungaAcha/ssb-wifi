@@ -1,0 +1,50 @@
+[Unit]
+Description=SSB WiFi Kiosk - Chromium Kiosk Display
+Documentation=https://github.com/ssb-wifi-kiosk
+After=graphical.target ssb-webserver.service
+Wants=ssb-webserver.service
+ConditionPathExists=/usr/bin/chromium-browser
+
+[Service]
+Type=simple
+User=kiosk
+Group=kiosk
+WorkingDirectory=/home/kiosk
+
+# Wait for X to be ready
+ExecStartPre=/bin/sleep 5
+
+# Start Chromium in kiosk mode
+ExecStart=/usr/bin/chromium-browser \
+    --kiosk \
+    --noerrdialogs \
+    --disable-infobars \
+    --disable-session-crashed-bubble \
+    --disable-restore-session-state \
+    --disable-features=TranslateUI \
+    --disable-pinch \
+    --overscroll-history-navigation=0 \
+    --incognito \
+    --check-for-update-interval=31536000 \
+    --disable-component-update \
+    --disable-background-networking \
+    --disable-sync \
+    --no-first-run \
+    --start-fullscreen \
+    --window-position=0,0 \
+    http://localhost:8080
+
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# X11 display
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/kiosk/.Xauthority
+
+# Logging
+SyslogIdentifier=ssb-kiosk
+
+[Install]
+WantedBy=graphical.target

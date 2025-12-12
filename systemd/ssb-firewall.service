@@ -1,0 +1,18 @@
+[Unit]
+Description=SSB WiFi Kiosk - Firewall and NAT Setup
+Documentation=https://github.com/ssb-wifi-kiosk
+Before=hostapd.service dnsmasq.service ssb-ap-rotate.service
+After=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/ssb-wifi-kiosk/scripts/firewall.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+# Logging
+SyslogIdentifier=ssb-firewall
+
+[Install]
+WantedBy=multi-user.target

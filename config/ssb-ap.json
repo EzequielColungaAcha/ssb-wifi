@@ -1,0 +1,39 @@
+{
+  "rotation_interval_sec": 300,
+  "client_threshold": 5,
+  "min_time_after_clients_sec": 120,
+  "ssid_prefix": "ssb-",
+  "ssid_length": 6,
+  "password_length": 16,
+  "wan_interface": "eth0",
+  "country_code": "AR",
+  "log_retention_count": 100,
+  "manual_rotation_cooldown_sec": 30,
+  "internet_check_host": "1.1.1.1",
+  "internet_check_interval_sec": 5,
+  "web_port": 8080,
+
+  "dual_ap_mode": false,
+  "led_blink_threshold_sec": 60,
+
+  "interfaces": {
+    "wlan0": {
+      "enabled": true,
+      "ap_ip": "192.168.4.1",
+      "ap_netmask": "255.255.255.0",
+      "dhcp_range_start": "192.168.4.10",
+      "dhcp_range_end": "192.168.4.100",
+      "dhcp_lease_time": "10m",
+      "channel": 6
+    },
+    "wlan1": {
+      "enabled": false,
+      "ap_ip": "192.168.5.1",
+      "ap_netmask": "255.255.255.0",
+      "dhcp_range_start": "192.168.5.10",
+      "dhcp_range_end": "192.168.5.100",
+      "dhcp_lease_time": "10m",
+      "channel": 11
+    }
+  }
+}
