@@ -165,6 +165,9 @@ class SenseHatMonitor:
         self.blink_state = True
         self.last_blink_toggle = time.time()
         
+        # For dual AP mode: track which interface was last rotated (alternate on each press)
+        self.last_rotated_interface = "wlan1"  # Start with wlan1 so first press rotates wlan0
+        
         # Initialize Sense HAT
         if SENSE_HAT_AVAILABLE:
             self.sense = SenseHat()
@@ -426,49 +429,57 @@ class SenseHatMonitor:
             self.sense.set_pixels([COLOR_OFF] * 64)
             time.sleep(0.15)
     
-    def on_joystick_press(self, event):
-        """Handle joystick middle button press"""
-        logger.info(f"Joystick event received: direction={event.direction}, action={event.action}")
-        
-        if event.action == "pressed":
-            logger.info("Joystick middle button pressed - triggering rotation")
-            
-            # In dual mode, trigger both interfaces
-            if self.is_dual_mode():
-                self.trigger_rotation("wlan0")
-                self.trigger_rotation("wlan1")
-            else:
-                self.trigger_rotation("wlan0")
-    
-    def setup_joystick(self):
-        """Setup joystick handler"""
+    def poll_joystick(self):
+        """Poll for joystick events (more reliable than callbacks)"""
         try:
-            self.sense.stick.direction_middle = self.on_joystick_press
-            logger.info("Joystick middle-click handler registered successfully")
-        except AttributeError as e:
-            logger.error(f"Joystick not available on this Sense HAT: {e}")
+            events = self.sense.stick.get_events()
+            for event in events:
+                if event.direction == "middle" and event.action == "pressed":
+                    self.handle_joystick_press()
+        except AttributeError:
+            # Joystick not available (e.g., simulator without joystick support)
+            pass
         except Exception as e:
-            logger.warning(f"Failed to setup joystick: {e}")
+            logger.debug(f"Joystick poll error: {e}")
+    
+    def handle_joystick_press(self):
+        """Handle joystick middle button press"""
+        logger.info("Joystick middle button pressed")
+        
+        if self.is_dual_mode():
+            # Alternate between interfaces on each press
+            if self.last_rotated_interface == "wlan0":
+                interface = "wlan1"
+            else:
+                interface = "wlan0"
+            
+            logger.info(f"Dual mode: rotating {interface}")
+            if self.trigger_rotation(interface):
+                self.last_rotated_interface = interface
+        else:
+            # Single AP mode - always rotate wlan0
+            self.trigger_rotation("wlan0")
     
     def run(self):
         """Main loop"""
         logger.info("Sense HAT Monitor starting...")
         logger.info(f"Dual AP mode: {self.is_dual_mode()}")
         
-        self.setup_joystick()
-        
         # Initial display
         self.sense.set_pixels([COLOR_YELLOW] * 64)
         time.sleep(1)
         
-        # Use faster interval for responsive blinking
+        # Use faster interval for responsive joystick and blinking
         check_interval = min(
             self.config.get("internet_check_interval_sec", 5),
-            0.25  # Check at least 4 times per second for smooth blinking
+            0.1  # Check 10 times per second for responsive joystick
         )
+        
+        logger.info("Entering main loop - joystick polling active")
         
         while self.running:
             try:
+                self.poll_joystick()  # Check for joystick events
                 self.update_display()
                 time.sleep(check_interval)
             except Exception as e:
