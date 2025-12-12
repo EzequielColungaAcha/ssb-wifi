@@ -245,8 +245,17 @@ class APInstance:
     def restart_hostapd(self) -> bool:
         """Restart hostapd service for this interface"""
         try:
-            # Use template service for dual mode
-            service_name = f"hostapd@{self.interface}"
+            # Determine correct service name based on mode
+            dual_mode = self.global_config.get("dual_ap_mode", False)
+            
+            if dual_mode:
+                # Dual mode: use template service per interface
+                service_name = f"hostapd@{self.interface}"
+            else:
+                # Single mode: use standard hostapd service
+                service_name = "hostapd"
+            
+            logger.debug(f"Restarting {service_name} for {self.interface}")
             
             result = subprocess.run(
                 ["systemctl", "restart", service_name],
@@ -256,22 +265,10 @@ class APInstance:
             )
             
             if result.returncode == 0:
-                logger.info(f"hostapd restarted for {self.interface}")
+                logger.info(f"{service_name} restarted successfully")
                 return True
             else:
-                # Fallback: try regular hostapd for single mode (wlan0)
-                if self.interface == "wlan0":
-                    result = subprocess.run(
-                        ["systemctl", "restart", "hostapd"],
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    if result.returncode == 0:
-                        logger.info(f"hostapd (legacy) restarted for {self.interface}")
-                        return True
-                
-                logger.error(f"hostapd restart failed for {self.interface}: {result.stderr}")
+                logger.error(f"{service_name} restart failed: {result.stderr.strip()}")
                 return False
                 
         except subprocess.TimeoutExpired:

@@ -18,11 +18,12 @@ StandardError=journal
 
 # Environment
 Environment=PYTHONUNBUFFERED=1
+Environment=HOME=/tmp
+Environment=XDG_CONFIG_HOME=/tmp/.config
 
 # Security (relaxed - needs network admin capabilities)
 NoNewPrivileges=false
 ProtectSystem=false
-ProtectHome=true
 
 # Capabilities for network management
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW

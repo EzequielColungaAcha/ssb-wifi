@@ -17,10 +17,11 @@ StandardError=journal
 
 # Environment
 Environment=PYTHONUNBUFFERED=1
+Environment=HOME=/tmp
+Environment=XDG_CONFIG_HOME=/tmp/.config
 
 # Security
 NoNewPrivileges=true
-ProtectHome=true
 
 # Logging
 SyslogIdentifier=ssb-sensehat
