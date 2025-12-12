@@ -1,0 +1,30 @@
+Dec 12 11:21:20 ssbpi ssb-sensehat[13897]:     ~~~~~~~~~~~^^^^^^^^^^^
+Dec 12 11:21:20 ssbpi ssb-sensehat[13897]:   File "<frozen os>", line 218, in makedirs
+Dec 12 11:21:20 ssbpi ssb-sensehat[13897]:   File "<frozen os>", line 228, in makedirs
+Dec 12 11:21:20 ssbpi ssb-sensehat[13897]: OSError: [Errno 30] Read-only file system: '/root/.config'
+Dec 12 11:21:20 ssbpi systemd[1]: ssb-sensehat.service: Main process exited, code=exited, status=1/FAILURE
+Dec 12 11:21:20 ssbpi systemd[1]: ssb-sensehat.service: Failed with result 'exit-code'.
+Dec 12 11:21:20 ssbpi systemd[1]: ssb-sensehat.service: Consumed 1.207s CPU time.
+Dec 12 11:21:31 ssbpi systemd[1]: ssb-sensehat.service: Scheduled restart job, restart counter is at 66.
+Dec 12 11:21:31 ssbpi systemd[1]: Started ssb-sensehat.service - SSB WiFi Kiosk - Sense HAT Monitor.
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]: Traceback (most recent call last):
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:   File "/opt/ssb-wifi-kiosk/sensehat/sensehat_monitor.py", line 479, in <module>
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:     main()
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:     ~~~~^^
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:   File "/opt/ssb-wifi-kiosk/sensehat/sensehat_monitor.py", line 474, in main
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:     monitor = SenseHatMonitor()
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:   File "/opt/ssb-wifi-kiosk/sensehat/sensehat_monitor.py", line 170, in __init__
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:     self.sense = SenseHat()
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:                  ~~~~~~~~^^
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:   File "/usr/lib/python3/dist-packages/sense_hat/sense_hat.py", line 79, in __init__
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:     self._imu_settings = self._get_settings_file(imu_settings_file)
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:                          ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:   File "/usr/lib/python3/dist-packages/sense_hat/sense_hat.py", line 162, in _get_settings_file
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:     os.makedirs(home_path)
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:     ~~~~~~~~~~~^^^^^^^^^^^
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:   File "<frozen os>", line 218, in makedirs
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]:   File "<frozen os>", line 228, in makedirs
+Dec 12 11:21:32 ssbpi ssb-sensehat[13928]: OSError: [Errno 30] Read-only file system: '/root/.config'
+Dec 12 11:21:32 ssbpi systemd[1]: ssb-sensehat.service: Main process exited, code=exited, status=1/FAILURE
+Dec 12 11:21:32 ssbpi systemd[1]: ssb-sensehat.service: Failed with result 'exit-code'.
+Dec 12 11:21:32 ssbpi systemd[1]: ssb-sensehat.service: Consumed 1.084s CPU time.
