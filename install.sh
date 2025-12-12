@@ -158,30 +158,40 @@ else
     echo -e "${YELLOW}  - sense-hat not available (optional)${NC}"
 fi
 
-# X11 and kiosk packages
+# Kiosk packages (Desktop OS already has X11)
 apt-get install -y -qq \
-    xserver-xorg \
-    x11-xserver-utils \
-    xinit \
     chromium \
     unclutter \
-    fonts-dejavu
+    fonts-dejavu \
+    curl
 
 echo -e "${GREEN}✅ Dependencies installed${NC}"
 
-# ===== CREATE KIOSK USER =====
+# ===== DETECT DESKTOP USER =====
 echo ""
-echo -e "${CYAN}[4/11] Creating kiosk user...${NC}"
+echo -e "${CYAN}[4/11] Detecting desktop user...${NC}"
 
-if id "$KIOSK_USER" &>/dev/null; then
-    echo "  - User '$KIOSK_USER' already exists"
+# Find the primary desktop user (usually 'pi' or the user who ran sudo)
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    DESKTOP_USER="$SUDO_USER"
+elif id "pi" &>/dev/null; then
+    DESKTOP_USER="pi"
 else
-    useradd -m -s /bin/bash "$KIOSK_USER"
-    echo "  - User '$KIOSK_USER' created"
+    # Find first non-root user with a home directory
+    DESKTOP_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1; exit}')
 fi
 
+if [ -z "$DESKTOP_USER" ]; then
+    echo -e "${RED}❌ Could not detect desktop user${NC}"
+    exit 1
+fi
+
+DESKTOP_HOME="/home/$DESKTOP_USER"
+echo -e "${GREEN}  Desktop user: $DESKTOP_USER${NC}"
+echo -e "${GREEN}  Home directory: $DESKTOP_HOME${NC}"
+
 # Add to necessary groups
-usermod -aG video,audio,input,tty "$KIOSK_USER"
+usermod -aG video,audio,input,tty "$DESKTOP_USER"
 
 # ===== CREATE DIRECTORIES =====
 echo ""
@@ -361,54 +371,47 @@ fi
 
 echo -e "${GREEN}✅ Network configured${NC}"
 
-# ===== CONFIGURE KIOSK AUTOLOGIN =====
+# ===== CONFIGURE DESKTOP KIOSK =====
 echo ""
-echo -e "${CYAN}[10/11] Configuring kiosk autologin...${NC}"
+echo -e "${CYAN}[10/11] Configuring desktop kiosk mode...${NC}"
 
-# Create autologin config for getty
-mkdir -p /etc/systemd/system/getty@tty1.service.d
-cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
-[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin $KIOSK_USER --noclear %I \$TERM
+# Create LXDE autostart directory
+AUTOSTART_DIR="$DESKTOP_HOME/.config/lxsession/LXDE-pi"
+mkdir -p "$AUTOSTART_DIR"
+
+# Create autostart file for kiosk mode
+cat > "$AUTOSTART_DIR/autostart" << 'EOF'
+@lxpanel --profile LXDE-pi
+@pcmanfm --desktop --profile LXDE-pi
+@xset s off
+@xset -dpms
+@xset s noblank
+@unclutter -idle 0.5 -root
+@bash /opt/ssb-wifi-kiosk/scripts/start-kiosk.sh
 EOF
+chown -R "$DESKTOP_USER:$DESKTOP_USER" "$DESKTOP_HOME/.config"
 
-# Create .bash_profile for kiosk user to start X
-KIOSK_HOME="/home/$KIOSK_USER"
-cat > "$KIOSK_HOME/.bash_profile" << 'EOF'
-# SSB WiFi Kiosk - Auto-start X on login
-if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
-    exec startx -- -nocursor
-fi
-EOF
-chown "$KIOSK_USER:$KIOSK_USER" "$KIOSK_HOME/.bash_profile"
-
-# Create .xinitrc for kiosk user
-cat > "$KIOSK_HOME/.xinitrc" << 'EOF'
+# Create kiosk startup script (waits for web server)
+cat > "$INSTALL_DIR/scripts/start-kiosk.sh" << 'EOF'
 #!/bin/bash
-# SSB WiFi Kiosk - X Session
+# SSB WiFi Kiosk - Desktop Startup Script
 
-# Log for debugging
-exec > /tmp/kiosk-xinit.log 2>&1
-echo "Starting X session at $(date)"
+LOG_FILE="/tmp/ssb-kiosk.log"
+exec > "$LOG_FILE" 2>&1
+echo "Starting SSB Kiosk at $(date)"
 
-# Disable screen saver and power management
-xset s off
-xset -dpms
-xset s noblank
-
-# Hide cursor
-unclutter -idle 0.1 -root &
-
-# Wait for web server to be fully ready
+# Wait for web server to be ready
 echo "Waiting for web server..."
-for i in {1..30}; do
+for i in {1..60}; do
     if curl -s http://localhost:8080/health > /dev/null 2>&1; then
         echo "Web server ready after $i seconds"
         break
     fi
     sleep 1
 done
+
+# Give desktop a moment to fully load
+sleep 2
 
 # Start Chromium in kiosk mode
 echo "Starting Chromium..."
@@ -431,10 +434,23 @@ exec chromium \
     --window-position=0,0 \
     http://localhost:8080
 EOF
-chmod +x "$KIOSK_HOME/.xinitrc"
-chown "$KIOSK_USER:$KIOSK_USER" "$KIOSK_HOME/.xinitrc"
+chmod +x "$INSTALL_DIR/scripts/start-kiosk.sh"
 
-echo -e "${GREEN}✅ Kiosk autologin configured${NC}"
+# Configure autologin to desktop using raspi-config
+echo "Configuring desktop autologin..."
+if command -v raspi-config &> /dev/null; then
+    raspi-config nonint do_boot_behaviour B4 2>/dev/null || true
+    echo "  - Desktop autologin enabled via raspi-config"
+else
+    # Manual lightdm configuration if raspi-config not available
+    if [ -f /etc/lightdm/lightdm.conf ]; then
+        sed -i "s/^#autologin-user=.*/autologin-user=$DESKTOP_USER/" /etc/lightdm/lightdm.conf
+        sed -i "s/^autologin-user=.*/autologin-user=$DESKTOP_USER/" /etc/lightdm/lightdm.conf
+        echo "  - Desktop autologin configured via lightdm"
+    fi
+fi
+
+echo -e "${GREEN}✅ Desktop kiosk configured${NC}"
 
 # ===== START SERVICES =====
 echo ""
