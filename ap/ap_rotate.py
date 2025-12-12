@@ -283,9 +283,12 @@ class APInstance:
         if not self.current_creds:
             return
         try:
-            with open(self.creds_file, 'w') as f:
+            # Write to temp file first, then rename (atomic)
+            temp_file = self.creds_file.with_suffix('.tmp')
+            with open(temp_file, 'w') as f:
                 json.dump(asdict(self.current_creds), f, indent=2)
-            os.chmod(self.creds_file, 0o600)
+            os.chmod(temp_file, 0o600)
+            os.rename(temp_file, self.creds_file)
         except Exception as e:
             logger.error(f"Failed to save credentials for {self.interface}: {e}")
     
@@ -310,9 +313,12 @@ class APInstance:
                 last_error=error
             )
             
-            with open(self.status_file, 'w') as f:
+            # Write to temp file first, then rename (atomic)
+            temp_file = self.status_file.with_suffix('.tmp')
+            with open(temp_file, 'w') as f:
                 json.dump(asdict(status), f, indent=2)
-            os.chmod(self.status_file, 0o644)
+            os.chmod(temp_file, 0o644)
+            os.rename(temp_file, self.status_file)
             
         except Exception as e:
             logger.error(f"Failed to update status for {self.interface}: {e}")

@@ -429,18 +429,27 @@ class SenseHatMonitor:
             self.sense.set_pixels([COLOR_OFF] * 64)
             time.sleep(0.15)
     
-    def poll_joystick(self):
-        """Poll for joystick events (more reliable than callbacks)"""
-        try:
-            events = self.sense.stick.get_events()
-            for event in events:
+    def joystick_thread(self):
+        """Separate thread to wait for joystick events (blocking)"""
+        logger.info("Joystick thread started - waiting for events")
+        while self.running:
+            try:
+                # wait_for_event blocks until an event occurs
+                event = self.sense.stick.wait_for_event(emptybuffer=True)
+                logger.debug(f"Joystick event: direction={event.direction}, action={event.action}")
+                
                 if event.direction == "middle" and event.action == "pressed":
+                    logger.info("Joystick MIDDLE pressed detected")
                     self.handle_joystick_press()
-        except AttributeError:
-            # Joystick not available (e.g., simulator without joystick support)
-            pass
-        except Exception as e:
-            logger.debug(f"Joystick poll error: {e}")
+            except AttributeError as e:
+                # Joystick not available (simulator or hardware issue)
+                logger.warning(f"Joystick not available: {e}")
+                break  # Exit thread if no joystick
+            except Exception as e:
+                logger.error(f"Joystick thread error: {e}")
+                time.sleep(1)  # Prevent tight loop on repeated errors
+        
+        logger.info("Joystick thread stopped")
     
     def handle_joystick_press(self):
         """Handle joystick middle button press"""
@@ -469,17 +478,22 @@ class SenseHatMonitor:
         self.sense.set_pixels([COLOR_YELLOW] * 64)
         time.sleep(1)
         
-        # Use faster interval for responsive joystick and blinking
+        # Start joystick thread (uses blocking wait_for_event)
+        if SENSE_HAT_AVAILABLE:
+            joystick_t = threading.Thread(target=self.joystick_thread, daemon=True)
+            joystick_t.start()
+            logger.info("Joystick thread launched")
+        
+        # Display update interval
         check_interval = min(
             self.config.get("internet_check_interval_sec", 5),
-            0.1  # Check 10 times per second for responsive joystick
+            0.25  # Update display 4 times per second for smooth blinking
         )
         
-        logger.info("Entering main loop - joystick polling active")
+        logger.info("Entering main loop")
         
         while self.running:
             try:
-                self.poll_joystick()  # Check for joystick events
                 self.update_display()
                 time.sleep(check_interval)
             except Exception as e:
