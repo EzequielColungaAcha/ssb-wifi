@@ -300,6 +300,11 @@ systemctl unmask hostapd
 # Disable default hostapd in dual mode (we use template units)
 if [ "$DUAL_AP_MODE" = true ]; then
     systemctl disable hostapd 2>/dev/null || true
+else
+    # Single AP mode: create symlink so default hostapd.service finds config
+    # (hostapd.service has ConditionFileNotEmpty=/etc/hostapd/hostapd.conf)
+    ln -sf /etc/hostapd/hostapd-wlan0.conf /etc/hostapd/hostapd.conf
+    echo "  - Created symlink /etc/hostapd/hostapd.conf -> hostapd-wlan0.conf"
 fi
 
 echo -e "${GREEN}✅ Network services configured${NC}"
