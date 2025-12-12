@@ -388,6 +388,10 @@ cat > "$KIOSK_HOME/.xinitrc" << 'EOF'
 #!/bin/bash
 # SSB WiFi Kiosk - X Session
 
+# Log for debugging
+exec > /tmp/kiosk-xinit.log 2>&1
+echo "Starting X session at $(date)"
+
 # Disable screen saver and power management
 xset s off
 xset -dpms
@@ -396,10 +400,18 @@ xset s noblank
 # Hide cursor
 unclutter -idle 0.1 -root &
 
-# Wait for web server
-sleep 5
+# Wait for web server to be fully ready
+echo "Waiting for web server..."
+for i in {1..30}; do
+    if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+        echo "Web server ready after $i seconds"
+        break
+    fi
+    sleep 1
+done
 
 # Start Chromium in kiosk mode
+echo "Starting Chromium..."
 exec chromium \
     --kiosk \
     --noerrdialogs \
